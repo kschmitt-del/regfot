@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="pt-PT" ng-app="obraApp" ng-controller="obraCtrl as vm">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Registo Fotográfico de Obra</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.8.3/angular.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+  :root{
+    --safety-orange:#E8590C;
+    --steel:#1C2733;
+    --steel-2:#26333F;
+    --concrete:#F2F1ED;
+    --ok-green:#2F9E44;
+    --warn-red:#C92A2A;
+  }
+  body{ background:var(--concrete); font-family: 'Segoe UI', Roboto, Arial, sans-serif; }
+  .font-display{ font-family: 'Arial Black', Arial, sans-serif; letter-spacing:0.02em; }
+  .btn-big{ min-height:64px; }
+  .diag-stripes{
+    background-image: repeating-linear-gradient(45deg, var(--safety-orange), var(--safety-orange) 12px, #000 12px, #000 24px);
+  }
+  ::-webkit-scrollbar{ width:10px; }
+  ::-webkit-scrollbar-thumb{ background:#9aa5af; border-radius:6px; }
+  .thumb-card{ transition: transform .12s ease; }
+  .thumb-card:active{ transform: scale(0.97); }
+  .fade-in{ animation: fadeIn .25s ease-out; }
+  @keyframes fadeIn{ from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:translateY(0);} }
+  .pulse-dot{ animation: pulse 1.6s infinite; }
+  @keyframes pulse{ 0%,100%{opacity:1;} 50%{opacity:.35;} }
+  [ng-cloak]{ display:none !important; }
+</style>
+</head>
+<body class="min-h-screen text-[var(--steel)]" ng-cloak>
+
+<!-- Barra de topo estilo "obra" -->
+<header class="bg-[var(--steel)] text-white">
+  <div class="h-2 diag-stripes"></div>
+  <div class="max-w-5xl mx-auto px-5 py-4 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded bg-[var(--safety-orange)] flex items-center justify-center font-display text-xl">📷</div>
+      <div>
+        <h1 class="font-display text-lg sm:text-xl leading-tight">REGISTO FOTOGRÁFICO</h1>
+        <p class="text-xs text-gray-300 -mt-0.5">Captura de obra — funciona 100% offline no browser (AngularJS)</p>
+      </div>
+    </div>
+    <div ng-if="vm.workName" class="hidden sm:flex items-center gap-2 text-xs bg-[var(--steel-2)] px-3 py-1.5 rounded-full">
+      <span class="w-2 h-2 rounded-full bg-[var(--ok-green)] pulse-dot"></span>
+      <span>{{ vm.workName }} — {{ vm.photos.length }} foto(s)</span>
+    </div>
+  </div>
+</header>
+
+<main class="max-w-5xl mx-auto px-5 py-8">
+
+  <!-- ECRÃ 1: Início -->
+  <section ng-if="!vm.sessionActive" class="fade-in">
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 sm:p-10 max-w-xl mx-auto">
+      <h2 class="font-display text-2xl mb-1">Nova Obra</h2>
+      <p class="text-gray-500 mb-6 text-sm">Indique o nome da obra para começar a tirar e organizar as fotos.</p>
+
+      <label for="workNameInput" class="block text-sm font-semibold mb-2">Nome da Obra</label>
+      <input
+        id="workNameInput"
+        type="text"
+        ng-model="vm.workNameRaw"
+        ng-enter="vm.startSession()"
+        placeholder="Ex: Lote4, EdificioNorte, ObraCentral..."
+        class="w-full border-2 border-gray-300 focus:border-[var(--safety-orange)] outline-none rounded-xl px-4 py-3.5 text-lg mb-2"
+        autocomplete="off"
+      >
+      <p ng-if="vm.nameError" class="text-[var(--warn-red)] text-sm mb-4">Escreva um nome válido (letras, números, sem espaços especiais).</p>
+
+      <button
+        ng-click="vm.startSession()"
+        class="btn-big w-full bg-[var(--safety-orange)] hover:brightness-95 active:scale-[0.98] transition text-white font-display text-lg rounded-xl shadow-md flex items-center justify-center gap-2"
+      >
+        📸 INICIAR CAPTURA
+      </button>
+    </div>
+  </section>
+
+  <!-- ECRÃ 2: Captura -->
+  <section ng-if="vm.sessionActive" class="fade-in">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
+      <div>
+        <p class="text-xs uppercase tracking-wide text-gray-500 font-semibold">Obra em curso</p>
+        <h2 class="font-display text-2xl truncate max-w-xs sm:max-w-md">{{ vm.workName }}</h2>
+      </div>
+      <div class="bg-white border border-gray-200 rounded-xl px-4 py-2 flex items-center gap-2 shadow-sm self-start">
+        <span class="text-2xl">🗂️</span>
+        <div class="leading-tight">
+          <p class="text-xs text-gray-500">Fotos guardadas</p>
+          <p class="font-display text-xl">{{ vm.photos.length }}</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Botão de captura grande -->
+    <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 sm:p-6 mb-6">
+      <label for="cameraInput" class="btn-big w-full bg-[var(--steel)] hover:bg-[var(--steel-2)] active:scale-[0.98] transition text-white font-display text-lg rounded-xl shadow-md flex items-center justify-center gap-3 cursor-pointer">
+        📷 TIRAR FOTO
+      </label>
+      <input id="cameraInput" type="file" accept="image/*" capture="environment" class="hidden" onchange="angular.element(this).scope().vm.onPhotoTaken(this.files[0]); this.value='';">
+      <p class="text-center text-xs text-gray-400 mt-3">Cada foto é guardada apenas na memória deste tablet, nesta sessão.</p>
+    </div>
+
+    <!-- Histórico de miniaturas -->
+    <div class="mb-6">
+      <h3 class="font-semibold text-gray-600 mb-3 text-sm uppercase tracking-wide">Histórico da sessão</h3>
+      <div ng-if="vm.photos.length === 0" class="bg-white border-2 border-dashed border-gray-300 rounded-xl p-10 text-center text-gray-400">
+        Ainda não tem fotos. Toque em "Tirar Foto" para começar.
+      </div>
+      <div ng-if="vm.photos.length > 0" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+        <div class="thumb-card bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm" ng-repeat="p in vm.photos track by p.id">
+          <img ng-src="{{ p.url }}" class="w-full h-32 object-cover" alt="{{ p.filename }}">
+          <div class="p-2.5">
+            <p class="text-xs font-semibold truncate" title="{{ p.filename }}">{{ p.filename }}</p>
+            <button ng-click="vm.removePhoto(p.id)" class="mt-2 w-full text-xs text-[var(--warn-red)] border border-[var(--warn-red)] rounded-lg py-1.5 hover:bg-red-50 transition">
+              🗑️ Remover
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Ações finais -->
+    <div class="sticky bottom-4 bg-white/95 backdrop-blur border border-gray-200 rounded-2xl shadow-lg p-4 flex flex-col sm:flex-row gap-3">
+      <button ng-click="vm.cancelSession()" class="btn-big flex-1 border-2 border-gray-300 text-gray-600 hover:bg-gray-50 font-semibold rounded-xl transition">
+        ✕ Cancelar Obra
+      </button>
+      <button
+        ng-click="vm.finishAndDownload()"
+        ng-disabled="vm.photos.length === 0"
+        class="btn-big flex-[2] bg-[var(--ok-green)] hover:brightness-95 active:scale-[0.98] transition text-white font-display text-lg rounded-xl shadow-md flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+      >
+        ✅ CONCLUIR E DESCARREGAR FOTOS (.zip)
+      </button>
+    </div>
+  </section>
+
+  <!-- Overlay de processamento -->
+  <div ng-if="vm.processing" class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center">
+    <div class="bg-white rounded-2xl p-8 text-center max-w-xs mx-4 shadow-xl">
+      <div class="text-4xl mb-3 animate-bounce">🗜️</div>
+      <p class="font-display text-lg mb-1">A preparar o ZIP...</p>
+      <p class="text-sm text-gray-500">Não feche esta janela.</p>
+    </div>
+  </div>
+
+</main>
+
+<footer class="max-w-5xl mx-auto px-5 pb-10 pt-4 text-center text-xs text-gray-400">
+  Todas as fotos permanecem apenas neste dispositivo até serem descarregadas. Nenhum dado é enviado para qualquer servidor.
+</footer>
+
+<script>
+  var app = angular.module('obraApp', []);
+
+  // Diretiva simples para permitir "Enter" no campo de texto
+  app.directive('ngEnter', function() {
+    return function(scope, element, attrs) {
+      element.on('keydown keypress', function(event) {
+        if(event.which === 13) {
+          scope.$apply(function(){
+            scope.$eval(attrs.ngEnter);
+          });
+          event.preventDefault();
+        }
+      });
+    };
+  });
+
+  app.controller('obraCtrl', ['$scope', function($scope){
+    var vm = this;
+
+    vm.sessionActive = false;
+    vm.workNameRaw = "";
+    vm.workName = "";
+    vm.nameError = false;
+    vm.photos = [];
+    vm.processing = false;
+    vm._counter = 0;
+
+    function sanitizeName(name){
+      return (name || "").trim().replace(/[^a-zA-Z0-9_\-]/g, '_').replace(/_+/g,'_');
+    }
+
+    vm.startSession = function(){
+      var clean = sanitizeName(vm.workNameRaw);
+      if(!clean){
+        vm.nameError = true;
+        return;
+      }
+      vm.nameError = false;
+      vm.workName = clean;
+      vm._counter = 0;
+      vm.photos = [];
+      vm.sessionActive = true;
+    };
+
+    vm.onPhotoTaken = function(file){
+      if(!file) return;
+      vm._counter += 1;
+      var filename = vm.workName + '_' + vm._counter + '.jpg';
+      var url = URL.createObjectURL(file);
+      vm.photos.push({ id: vm._counter, filename: filename, blob: file, url: url });
+      $scope.$applyAsync();
+    };
+
+    vm.removePhoto = function(id){
+      var idx = vm.photos.findIndex(function(p){ return p.id === id; });
+      if(idx > -1){
+        URL.revokeObjectURL(vm.photos[idx].url);
+        vm.photos.splice(idx, 1);
+      }
+    };
+
+    vm.cancelSession = function(){
+      if(vm.photos.length > 0){
+        var ok = confirm("Tem a certeza que quer cancelar? Todas as fotos desta obra serão perdidas.");
+        if(!ok) return;
+      }
+      resetSession();
+    };
+
+    vm.finishAndDownload = function(){
+      if(vm.photos.length === 0) return;
+      vm.processing = true;
+
+      var zip = new JSZip();
+      vm.photos.forEach(function(p){
+        zip.file(p.filename, p.blob);
+      });
+
+      zip.generateAsync({ type: "blob" }).then(function(content){
+        var zipUrl = URL.createObjectURL(content);
+        var a = document.createElement('a');
+        a.href = zipUrl;
+        a.download = vm.workName + '.zip';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+
+        setTimeout(function(){
+          URL.revokeObjectURL(zipUrl);
+          vm.processing = false;
+          resetSession();
+          $scope.$applyAsync();
+        }, 800);
+
+      }).catch(function(err){
+        vm.processing = false;
+        alert("Ocorreu um erro ao criar o ZIP. Tente novamente.");
+        console.error(err);
+        $scope.$applyAsync();
+      });
+    };
+
+    function resetSession(){
+      vm.photos.forEach(function(p){ URL.revokeObjectURL(p.url); });
+      vm.photos = [];
+      vm._counter = 0;
+      vm.workName = "";
+      vm.workNameRaw = "";
+      vm.sessionActive = false;
+    }
+
+    window.addEventListener('beforeunload', function(e){
+      if(vm.photos.length > 0){
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    });
+  }]);
+</script>
+</body>
+</html>
